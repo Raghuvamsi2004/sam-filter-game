@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Filter Game Base</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: black;
+      height: 100vh;
+    }
+
+    video {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* mirror selfie mode */
+    }
+
+    .overlay {
+      position: absolute;
+      bottom: 80px;  /* above the buttons */
+      left: 0;       /* start from left */
+      width: 150px;  /* control width */
+      height: auto;
+      transition: left 0.3s ease; /* smooth movement */
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 20px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: white;
+      color: black;
+    }
+
+    button:hover {
+      background: lightgray;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" autoplay playsinline></video>
+  <img src="sam1.png" id="overlay" class="overlay" alt="Cat Filter">
+
+  <div class="controls">
+    <button id="leftBtn">⬅️ Left</button>
+    <button id="rightBtn">➡️ Right</button>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('overlay');
+    let position = 0; // current left position in pixels
+
+    // Camera access
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        console.error("Camera access denied:", err);
+      });
+
+    // Function to move overlay with boundary check
+    function moveOverlay(direction) {
+      const step = 30; // move step
+      const screenWidth = window.innerWidth;
+      const overlayWidth = overlay.offsetWidth;
+
+      if (direction === "left") {
+        if (position > 0) {  // stop at left edge
+          position -= step;
+        }
+      } else if (direction === "right") {
+        if (position + overlayWidth < screenWidth) { // stop at right edge
+          position += step;
+        }
+      }
+      overlay.style.left = position + "px";
+    }
+
+    // Button functionality
+    document.getElementById('leftBtn').addEventListener('click', () => moveOverlay("left"));
+    document.getElementById('rightBtn').addEventListener('click', () => moveOverlay("right"));
+  </script>
+</body>
+</html>
