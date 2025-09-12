@@ -3,15 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Filter Game Base</title>
+  <title>Filter Game</title>
   <style>
     body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
       background: black;
       height: 100vh;
     }
@@ -23,46 +20,48 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transform: scaleX(-1); /* mirror selfie mode */
+      transform: scaleX(-1);
     }
 
     .overlay {
       position: absolute;
-      bottom: 80px;  /* above the buttons */
-      left: 0;       /* start from left */
-      width: 150px;  /* control width */
+      bottom: 20px;
+      left: 0;
+      width: 150px;
       height: auto;
-      transition: left 0.3s ease; /* smooth movement */
+      transition: left 0.5s ease;
     }
 
     .controls {
       position: absolute;
       bottom: 20px;
-      width: 100%;
-      display: flex;
-      justify-content: center;
-      gap: 40px;
+      left: 50%;
+      transform: translateX(-50%);
     }
 
     button {
+      font-size: 2rem;
+      margin: 0 10px;
       padding: 10px 20px;
-      font-size: 20px;
-      font-weight: bold;
-      border: none;
-      border-radius: 8px;
       cursor: pointer;
-      background: white;
-      color: black;
     }
 
-    button:hover {
-      background: lightgray;
+    model-viewer {
+      position: absolute;
+      bottom: 20px;
+      left: 0;
+      width: 150px;
+      height: 150px;
+      display: none;
+      pointer-events: none; /* so only buttons can be clicked */
     }
   </style>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 </head>
 <body>
   <video id="video" autoplay playsinline></video>
-  <img src="sam1.png" id="overlay" class="overlay" alt="Cat Filter">
+  <img id="cat2d" src="sam1.png" class="overlay" alt="Cat Filter">
+  <model-viewer id="model3d" src="sam_3d_new.glb"></model-viewer>
 
   <div class="controls">
     <button id="leftBtn">⬅️ Left</button>
@@ -71,39 +70,50 @@
 
   <script>
     const video = document.getElementById('video');
-    const overlay = document.getElementById('overlay');
-    let position = 0; // current left position in pixels
+    const cat2d = document.getElementById('cat2d');
+    const model3d = document.getElementById('model3d');
 
-    // Camera access
+    let step = 0;
+    const stepSize = 100; // pixels to move per click
+    const maxSteps = Math.floor(window.innerWidth / stepSize) - 2; 
+
+    // Webcam
     navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        video.srcObject = stream;
-      })
-      .catch(err => {
-        console.error("Camera access denied:", err);
-      });
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => console.error("Camera access denied:", err));
 
-    // Function to move overlay with boundary check
-    function moveOverlay(direction) {
-      const step = 30; // move step
-      const screenWidth = window.innerWidth;
-      const overlayWidth = overlay.offsetWidth;
+    function spinAndMove(direction) {
+      // show 3D where 2D was
+      model3d.style.left = cat2d.style.left || "0px";
+      model3d.style.display = "block";
+      cat2d.style.display = "none";
 
-      if (direction === "left") {
-        if (position > 0) {  // stop at left edge
-          position -= step;
+      // spin logic
+      let spinAmount = 0;
+      const spinInterval = setInterval(() => {
+        model3d.rotation = `${spinAmount}deg`; // CSS rotation
+        spinAmount += direction * 15;
+        if (Math.abs(spinAmount) >= 180) {
+          clearInterval(spinInterval);
+
+          // update step and clamp within screen
+          step = Math.max(0, Math.min(maxSteps, step + direction));
+          cat2d.style.left = (step * stepSize) + "px";
+
+          // back to 2D
+          model3d.style.display = "none";
+          cat2d.style.display = "block";
         }
-      } else if (direction === "right") {
-        if (position + overlayWidth < screenWidth) { // stop at right edge
-          position += step;
-        }
-      }
-      overlay.style.left = position + "px";
+      }, 50);
     }
 
-    // Button functionality
-    document.getElementById('leftBtn').addEventListener('click', () => moveOverlay("left"));
-    document.getElementById('rightBtn').addEventListener('click', () => moveOverlay("right"));
+    document.getElementById("leftBtn").addEventListener("click", () => {
+      if (step > 0) spinAndMove(-1);
+    });
+
+    document.getElementById("rightBtn").addEventListener("click", () => {
+      if (step < maxSteps) spinAndMove(1);
+    });
   </script>
 </body>
 </html>
