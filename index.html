@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Filter Game</title>
+  <title>Road Crossing Filter Game</title>
   <style>
     body {
       margin: 0;
@@ -12,7 +12,7 @@
       background: black;
       height: 100vh;
     }
-
+    
     video {
       position: fixed;
       top: 0;
@@ -21,99 +21,547 @@
       height: 100%;
       object-fit: cover;
       transform: scaleX(-1);
+      z-index: 1;
     }
-
+    
+    /* Left and Right Pathways - now part of the 9-lane system */
+    .pathway {
+      position: absolute;
+      top: 0;
+      width: calc(100% / 9);
+      height: 100%;
+      background: repeating-linear-gradient(
+        45deg,
+        #ff4444 0px,
+        #ff4444 20px,
+        #ffff44 20px,
+        #ffff44 40px
+      );
+      z-index: 2;
+      opacity: 0.6;
+    }
+    
+    .pathway-left {
+      left: 0;
+    }
+    
+    .pathway-right {
+      right: 0;
+    }
+    
+    /* Road lines - 8 lines to create 9 equal lanes across entire width */
+    .road-lines {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 3;
+      pointer-events: none;
+    }
+    
+    .road-line {
+      position: absolute;
+      width: 3px;
+      height: 100%;
+      background: repeating-linear-gradient(
+        to bottom,
+        yellow 0px,
+        yellow 30px,
+        transparent 30px,
+        transparent 60px
+      );
+      animation: moveDown 2s linear infinite;
+    }
+    
+    /* 8 lines to create 9 equal lanes across full screen width */
+    .line1 { left: calc(100% / 9 * 1); }
+    .line2 { left: calc(100% / 9 * 2); }
+    .line3 { left: calc(100% / 9 * 3); }
+    .line4 { left: calc(100% / 9 * 4); }
+    .line5 { left: calc(100% / 9 * 5); }
+    .line6 { left: calc(100% / 9 * 6); }
+    .line7 { left: calc(100% / 9 * 7); }
+    .line8 { left: calc(100% / 9 * 8); }
+    
+    @keyframes moveDown {
+      0% { transform: translateY(-60px); }
+      100% { transform: translateY(0px); }
+    }
+    
+    /* Car styles - positioned in lane centers */
+    .car {
+      position: absolute;
+      width: 60px;
+      height: 120px;
+      z-index: 4;
+      pointer-events: none;
+      background: linear-gradient(to bottom, #ff4444 0%, #cc0000 100%);
+      border-radius: 20px 20px 8px 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.7);
+    }
+    
+    .car::before {
+      content: '';
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      right: 8px;
+      height: 35px;
+      background: rgba(200, 255, 255, 0.8);
+      border-radius: 12px;
+    }
+    
+    .car::after {
+      content: '';
+      position: absolute;
+      bottom: 8px;
+      left: 5px;
+      right: 5px;
+      height: 12px;
+      background: #ffffff;
+      border-radius: 4px;
+    }
+    
+    .car.blue {
+      background: linear-gradient(to bottom, #4444ff 0%, #0000cc 100%);
+    }
+    
+    .car.green {
+      background: linear-gradient(to bottom, #44ff44 0%, #00cc00 100%);
+    }
+    
+    .car.yellow {
+      background: linear-gradient(to bottom, #ffff44 0%, #cccc00 100%);
+    }
+    
+    .car.purple {
+      background: linear-gradient(to bottom, #ff44ff 0%, #cc00cc 100%);
+    }
+    
+    .car.orange {
+      background: linear-gradient(to bottom, #ff8844 0%, #cc4400 100%);
+    }
+    
+    .car.white {
+      background: linear-gradient(to bottom, #ffffff 0%, #cccccc 100%);
+    }
+    
+    /* Character overlay - starts at left pathway */
     .overlay {
       position: absolute;
       bottom: 20px;
       left: 0;
-      width: 150px;
+      width: 60px;
       height: auto;
       transition: left 0.5s ease;
+      z-index: 5;
     }
-
+    
     .controls {
       position: absolute;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
+      z-index: 6;
     }
-
+    
+    /* Smaller buttons */
     button {
-      font-size: 2rem;
-      margin: 0 10px;
-      padding: 10px 20px;
+      font-size: 1.2rem;
+      margin: 0 8px;
+      padding: 8px 15px;
       cursor: pointer;
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.3);
     }
-
+    
+    button:hover {
+      background: rgba(255, 255, 255, 1);
+      transform: translateY(-1px);
+    }
+    
+    button:disabled {
+      background: rgba(150, 150, 150, 0.7);
+      cursor: not-allowed;
+    }
+    
     model-viewer {
       position: absolute;
       bottom: 20px;
       left: 0;
-      width: 150px;
-      height: 150px;
+      width: 60px;
+      height: 60px;
       display: none;
-      pointer-events: none; /* so only buttons can be clicked */
+      pointer-events: none;
+      z-index: 5;
+    }
+    
+    /* Game status */
+    .game-status {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 1.8rem;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      z-index: 6;
+      background: rgba(0,0,0,0.6);
+      padding: 15px 25px;
+      border-radius: 15px;
+      text-align: center;
+    }
+    
+    /* Win/Lose messages */
+    .game-over {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.9);
+      color: white;
+      padding: 30px 40px;
+      border-radius: 20px;
+      text-align: center;
+      font-size: 2rem;
+      font-weight: bold;
+      z-index: 10;
+      display: none;
+    }
+    
+    .win {
+      border: 4px solid #00ff00;
+      color: #00ff00;
+    }
+    
+    .lose {
+      border: 4px solid #ff0000;
+      color: #ff0000;
+    }
+    
+    .restart-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 1.2rem;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    
+    /* Progress indicator */
+    .progress {
+      position: absolute;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 1.2rem;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      z-index: 6;
+      background: rgba(0,0,0,0.6);
+      padding: 10px 20px;
+      border-radius: 10px;
     }
   </style>
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 </head>
 <body>
   <video id="video" autoplay playsinline></video>
-  <img id="cat2d" src="sam1.png" class="overlay" alt="Cat Filter">
+  
+  <!-- Left and Right Pathways - now part of 9-lane system -->
+  <div class="pathway pathway-left"></div>
+  <div class="pathway pathway-right"></div>
+  
+  <!-- Road lines - 8 lines for 9 equal lanes -->
+  <div class="road-lines">
+    <div class="road-line line1"></div>
+    <div class="road-line line2"></div>
+    <div class="road-line line3"></div>
+    <div class="road-line line4"></div>
+    <div class="road-line line5"></div>
+    <div class="road-line line6"></div>
+    <div class="road-line line7"></div>
+    <div class="road-line line8"></div>
+  </div>
+  
+  <!-- Game Status -->
+  <div class="game-status" id="gameStatus">Cross all lanes to reach the right pathway!</div>
+  
+  <!-- Progress indicator -->
+  <div class="progress" id="progress">Position: Left Pathway</div>
+  
+  <!-- Character -->
+  <img id="cat2d" src="sam1.png" class="overlay" alt="Character">
   <model-viewer id="model3d" src="sam_3d_new.glb"></model-viewer>
-
+  
+  <!-- Game Over Screen -->
+  <div class="game-over" id="gameOver">
+    <div id="gameMessage"></div>
+    <button class="restart-btn" onclick="restartGame()">Play Again</button>
+  </div>
+  
+  <!-- Controls -->
   <div class="controls">
-    <button id="leftBtn">⬅️ Left</button>
-    <button id="rightBtn">➡️ Right</button>
+    <button id="leftBtn">⬅️</button>
+    <button id="rightBtn">➡️</button>
   </div>
 
   <script>
     const video = document.getElementById('video');
     const cat2d = document.getElementById('cat2d');
     const model3d = document.getElementById('model3d');
-
-    let step = 0;
-    const stepSize = 100; // pixels to move per click
-    const maxSteps = Math.floor(window.innerWidth / stepSize) - 2; 
-
+    const gameStatus = document.getElementById('gameStatus');
+    const gameOver = document.getElementById('gameOver');
+    const gameMessage = document.getElementById('gameMessage');
+    const progress = document.getElementById('progress');
+    
+    let currentPosition = 0; // 0 = left pathway, 1-8 = road lanes, 9 = right pathway
+    let gameActive = true;
+    let isMoving = false;
+    
+    // Car management - cars only in middle 7 lanes (lanes 1-7)
+    let cars = [];
+    const carColors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'white'];
+    const laneWidth = window.innerWidth / 9; // Screen divided into 9 equal parts
+    
+    // Character positions - 10 positions (0-9)
+    const positions = [];
+    for (let i = 0; i < 10; i++) {
+      positions[i] = (laneWidth * i) + (laneWidth / 2) - 30; // Center of each lane
+    }
+    
     // Webcam
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(stream => { video.srcObject = stream; })
       .catch(err => console.error("Camera access denied:", err));
 
-    function spinAndMove(direction) {
-      // show 3D where 2D was
-      model3d.style.left = cat2d.style.left || "0px";
+    function createCar() {
+      if (!gameActive) return;
+      
+      const car = document.createElement('div');
+      car.className = 'car ' + carColors[Math.floor(Math.random() * carColors.length)];
+      
+      // Cars only spawn in middle 7 lanes (positions 1-7, avoiding pathways 0 and 8)
+      const laneIndex = 1 + Math.floor(Math.random() * 7); // 1, 2, 3, 4, 5, 6, 7
+      const laneCenter = positions[laneIndex];
+      
+      car.style.left = laneCenter + 'px';
+      car.style.top = '-150px';
+      
+      // Random speed between 2-5 seconds
+      const speed = 2 + Math.random() * 3;
+      car.style.animation = `moveCar ${speed}s linear`;
+      
+      document.body.appendChild(car);
+      cars.push({
+        element: car,
+        lane: laneIndex,
+        speed: speed,
+        x: laneCenter,
+        y: -150
+      });
+      
+      // Update car position for collision detection
+      const startTime = Date.now();
+      const updatePosition = () => {
+        if (!car.parentNode || !gameActive) return;
+        
+        const elapsed = (Date.now() - startTime) / 1000;
+        const progress = elapsed / speed;
+        
+        if (progress >= 1) {
+          // Car has passed, remove it
+          if (car.parentNode) {
+            car.parentNode.removeChild(car);
+          }
+          cars = cars.filter(c => c.element !== car);
+          return;
+        }
+        
+        // Update car position
+        const carData = cars.find(c => c.element === car);
+        if (carData) {
+          carData.y = -150 + (window.innerHeight + 300) * progress;
+          checkCollision();
+        }
+        
+        requestAnimationFrame(updatePosition);
+      };
+      
+      requestAnimationFrame(updatePosition);
+    }
+    
+    // Add CSS animation for car movement
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes moveCar {
+        0% { 
+          top: -150px; 
+        }
+        100% { 
+          top: calc(100vh + 150px); 
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Collision detection - only in road lanes (1-7)
+    function checkCollision() {
+      if (!gameActive || currentPosition === 0 || currentPosition === 8 || currentPosition === 9) return;
+      
+      const characterX = positions[currentPosition];
+      const characterY = window.innerHeight - 100;
+      
+      cars.forEach(car => {
+        if (car.lane === currentPosition) {
+          // Check if car is near character position
+          if (car.y > characterY - 60 && car.y < characterY + 60) {
+            gameOver.style.display = 'block';
+            gameMessage.innerHTML = '💥 GAME OVER!<br>You got hit by a car!';
+            gameOver.className = 'game-over lose';
+            gameActive = false;
+          }
+        }
+      });
+    }
+    
+    // Spawn cars randomly
+    function spawnCars() {
+      if (gameActive) {
+        createCar();
+        // Next car in 0.8-2.5 seconds
+        setTimeout(spawnCars, 800 + Math.random() * 1700);
+      }
+    }
+    
+    // Start spawning cars
+    setTimeout(spawnCars, 3000);
+
+    function moveCharacter(direction) {
+      if (!gameActive || isMoving) return;
+      
+      const newPosition = currentPosition + direction;
+      
+      // Check boundaries (0-9 positions)
+      if (newPosition < 0 || newPosition > 9) return;
+      
+      isMoving = true;
+      
+      // Show 3D model during movement
+      model3d.style.left = cat2d.style.left;
       model3d.style.display = "block";
       cat2d.style.display = "none";
-
-      // spin logic
+      
+      // Spin animation
       let spinAmount = 0;
       const spinInterval = setInterval(() => {
-        model3d.rotation = `${spinAmount}deg`; // CSS rotation
+        model3d.style.transform = `rotateY(${spinAmount}deg)`;
         spinAmount += direction * 15;
+        
         if (Math.abs(spinAmount) >= 180) {
           clearInterval(spinInterval);
-
-          // update step and clamp within screen
-          step = Math.max(0, Math.min(maxSteps, step + direction));
-          cat2d.style.left = (step * stepSize) + "px";
-
-          // back to 2D
+          
+          // Update position
+          currentPosition = newPosition;
+          const newPositionX = positions[currentPosition];
+          cat2d.style.left = newPositionX + "px";
+          
+          // Check win condition (reach right pathway - position 9)
+          if (currentPosition === 9) {
+            gameOver.style.display = 'block';
+            gameMessage.innerHTML = '🎉 YOU WIN!<br>Successfully reached the right pathway!';
+            gameOver.className = 'game-over win';
+            gameActive = false;
+          }
+          
+          // Update status
+          updateGameStatus();
+          
+          // Reset and show 2D character
+          model3d.style.transform = "rotateY(0deg)";
           model3d.style.display = "none";
           cat2d.style.display = "block";
+          isMoving = false;
         }
       }, 50);
     }
+    
+    function updateGameStatus() {
+      let statusText = "";
+      let progressText = "";
+      
+      if (currentPosition === 0) {
+        statusText = "You're on the left pathway - safe zone!";
+        progressText = "Position: Left Pathway";
+      } else if (currentPosition >= 1 && currentPosition <= 7) {
+        statusText = `Crossing lane ${currentPosition} of 7 - watch out for cars!`;
+        progressText = `Position: Lane ${currentPosition}/7`;
+      } else if (currentPosition === 8) {
+        statusText = "Almost there - one more step to safety!";
+        progressText = "Position: Near Right Pathway";
+      } else if (currentPosition === 9) {
+        statusText = "🎉 YOU WIN! Safe on the right pathway!";
+        progressText = "Position: Right Pathway - WINNER!";
+      }
+      
+      gameStatus.textContent = statusText;
+      progress.textContent = progressText;
+    }
+    
+    function restartGame() {
+      // Reset game state
+      gameActive = true;
+      currentPosition = 0;
+      isMoving = false;
+      
+      // Reset character position
+      cat2d.style.left = positions[0] + "px";
+      
+      // Clear all cars
+      cars.forEach(car => {
+        if (car.element.parentNode) {
+          car.element.parentNode.removeChild(car.element);
+        }
+      });
+      cars = [];
+      
+      // Hide game over screen
+      gameOver.style.display = 'none';
+      
+      // Update status
+      updateGameStatus();
+      
+      // Restart car spawning
+      setTimeout(spawnCars, 3000);
+    }
 
+    // Event listeners
     document.getElementById("leftBtn").addEventListener("click", () => {
-      if (step > 0) spinAndMove(-1);
+      moveCharacter(-1);
     });
 
     document.getElementById("rightBtn").addEventListener("click", () => {
-      if (step < maxSteps) spinAndMove(1);
+      moveCharacter(1);
     });
+    
+    // Keyboard controls
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') {
+        moveCharacter(-1);
+      } else if (event.key === 'ArrowRight') {
+        moveCharacter(1);
+      }
+    });
+    
+    // Initialize game
+    cat2d.style.left = positions[0] + "px"; // Start at left pathway
+    updateGameStatus();
   </script>
 </body>
 </html>
