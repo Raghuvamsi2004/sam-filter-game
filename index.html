@@ -28,7 +28,7 @@
     .pathway {
       position: absolute;
       top: 0;
-      width: calc(100% / 9);
+      width: calc(100% / 15);
       height: 100%;
       background: repeating-linear-gradient(
         45deg,
@@ -84,10 +84,7 @@
     .line7 { left: calc(100% / 9 * 7); }
     .line8 { left: calc(100% / 9 * 8); }
     
-    @keyframes moveDown {
-      0% { transform: translateY(-60px); }
-      100% { transform: translateY(0px); }
-    }
+   
     
     /* Car styles - positioned in lane centers */
     .car {
@@ -147,7 +144,7 @@
       background: linear-gradient(to bottom, #ffffff 0%, #cccccc 100%);
     }
     
-    /* Character overlay - starts at left pathway */
+    /* Character overlay - starts at left */
     .overlay {
       position: absolute;
       bottom: 20px;
@@ -156,6 +153,22 @@
       height: auto;
       transition: left 0.5s ease;
       z-index: 5;
+    }
+    
+    /* Goal image at end position */
+    .goal-image {
+      position: absolute;
+      bottom: 20px;
+      right: 0%;
+      width: 60px;
+      height: auto;
+      z-index: 5;
+      animation: goalPulse 2s ease-in-out infinite alternate;
+    }
+    
+    @keyframes goalPulse {
+      from { transform: scale(1); opacity: 0.8; }
+      to { transform: scale(1.1); opacity: 1; }
     }
     
     .controls {
@@ -216,6 +229,43 @@
       text-align: center;
     }
     
+    /* Victory popup */
+    .victory-popup {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 15;
+      text-align: center;
+      animation: victoryAppear 0.5s ease-out;
+    }
+    
+    .victory-image {
+      width: 120px;
+      height: auto;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    }
+    
+    .congratulations-text {
+      color: #fff;
+      font-size: 2rem;
+      font-weight: bold;
+      margin-top: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      animation: textGlow 1s ease-in-out infinite alternate;
+    }
+    
+    @keyframes victoryAppear {
+      from { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+      to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+    
+    @keyframes textGlow {
+      from { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+      to { text-shadow: 2px 2px 20px rgba(255,255,255,0.8); }
+    }
+    
     /* Win/Lose messages */
     .game-over {
       position: absolute;
@@ -253,28 +303,13 @@
       border-radius: 10px;
       cursor: pointer;
     }
-    
-    /* Progress indicator */
-    .progress {
-      position: absolute;
-      bottom: 100px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: white;
-      font-size: 1.2rem;
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-      z-index: 6;
-      background: rgba(0,0,0,0.6);
-      padding: 10px 20px;
-      border-radius: 10px;
-    }
   </style>
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 </head>
 <body>
   <video id="video" autoplay playsinline></video>
   
-  <!-- Left and Right Pathways - now part of 9-lane system -->
+  <!-- Left and Right Pathways -->
   <div class="pathway pathway-left"></div>
   <div class="pathway pathway-right"></div>
   
@@ -288,17 +323,28 @@
     <div class="road-line line6"></div>
     <div class="road-line line7"></div>
     <div class="road-line line8"></div>
+    
+    <!-- Zebra crossings -->
+    <div class="zebra-crossing zebra1"></div>
+    <div class="zebra-crossing zebra2"></div>
+    <div class="zebra-crossing zebra3"></div>
   </div>
   
   <!-- Game Status -->
-  <div class="game-status" id="gameStatus">Cross all lanes to reach the right pathway!</div>
-  
-  <!-- Progress indicator -->
-  <div class="progress" id="progress">Position: Left Pathway</div>
+  <div class="game-status" id="gameStatus">cross the road to reach Raghu!</div>
   
   <!-- Character -->
   <img id="cat2d" src="sam1.png" class="overlay" alt="Character">
   <model-viewer id="model3d" src="sam_3d_new.glb"></model-viewer>
+  
+  <!-- Goal Image at end -->
+  <img id="goalImage" src="vamkkd.png" class="goal-image" alt="Goal">
+  
+  <!-- Victory popup image -->
+  <div class="victory-popup" id="victoryPopup" style="display: none;">
+    <img src="arvisam.png" alt="Victory" class="victory-image">
+    <div class="congratulations-text">Congratulations!</div>
+  </div>
   
   <!-- Game Over Screen -->
   <div class="game-over" id="gameOver">
@@ -319,21 +365,35 @@
     const gameStatus = document.getElementById('gameStatus');
     const gameOver = document.getElementById('gameOver');
     const gameMessage = document.getElementById('gameMessage');
-    const progress = document.getElementById('progress');
     
-    let currentPosition = 0; // 0 = left pathway, 1-8 = road lanes, 9 = right pathway
+    // 20 total positions for fine movement control
+    let currentPosition = 0; 
     let gameActive = true;
     let isMoving = false;
+    const totalSteps = 20;
     
-    // Car management - cars only in middle 7 lanes (lanes 1-7)
+    // Car management
     let cars = [];
     const carColors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'white'];
-    const laneWidth = window.innerWidth / 9; // Screen divided into 9 equal parts
+    const laneWidth = window.innerWidth / 9; // 9 equal lanes
     
-    // Character positions - 10 positions (0-9)
+    // Character positions - 20 steps across screen
     const positions = [];
-    for (let i = 0; i < 10; i++) {
-      positions[i] = (laneWidth * i) + (laneWidth / 2) - 30; // Center of each lane
+    const startOffset = window.innerWidth * 0.045; // Start 4.5% from left
+    const endOffset = window.innerWidth * 0.955;   // End at 95.5% from left
+    const stepSize = (endOffset - startOffset) / (totalSteps - 1);
+    for (let i = 0; i < totalSteps; i++) {
+      positions[i] = startOffset + (stepSize * i) - 30;
+    }
+    
+    // Lane boundaries for car positioning
+    const laneBoundaries = [];
+    for (let i = 0; i < 9; i++) {
+      laneBoundaries[i] = {
+        left: (laneWidth * i),
+        right: (laneWidth * (i + 1)),
+        center: (laneWidth * i) + (laneWidth / 2)
+      };
     }
     
     // Webcam
@@ -347,15 +407,15 @@
       const car = document.createElement('div');
       car.className = 'car ' + carColors[Math.floor(Math.random() * carColors.length)];
       
-      // Cars only spawn in middle 7 lanes (positions 1-7, avoiding pathways 0 and 8)
-      const laneIndex = 1 + Math.floor(Math.random() * 7); // 1, 2, 3, 4, 5, 6, 7
-      const laneCenter = positions[laneIndex];
+      // Cars spawn in middle 7 lanes (lanes 1-7, avoiding pathways 0 and 8)
+      const laneIndex = 1 + Math.floor(Math.random() * 7);
+      const laneCenter = laneBoundaries[laneIndex].center - 30;
       
       car.style.left = laneCenter + 'px';
       car.style.top = '-150px';
       
-      // Random speed between 2-5 seconds
-      const speed = 2 + Math.random() * 3;
+      // Fixed medium speed for all cars
+      const speed = 2.5; 
       car.style.animation = `moveCar ${speed}s linear`;
       
       document.body.appendChild(car);
@@ -363,8 +423,10 @@
         element: car,
         lane: laneIndex,
         speed: speed,
-        x: laneCenter,
-        y: -150
+        x: laneCenter + 30,
+        y: -150,
+        width: 60,
+        height: 120
       });
       
       // Update car position for collision detection
@@ -373,9 +435,9 @@
         if (!car.parentNode || !gameActive) return;
         
         const elapsed = (Date.now() - startTime) / 1000;
-        const progress = elapsed / speed;
+        const progressRatio = elapsed / speed;
         
-        if (progress >= 1) {
+        if (progressRatio >= 1) {
           // Car has passed, remove it
           if (car.parentNode) {
             car.parentNode.removeChild(car);
@@ -387,7 +449,7 @@
         // Update car position
         const carData = cars.find(c => c.element === car);
         if (carData) {
-          carData.y = -150 + (window.innerHeight + 300) * progress;
+          carData.y = -150 + (window.innerHeight + 300) * progressRatio;
           checkCollision();
         }
         
@@ -411,45 +473,59 @@
     `;
     document.head.appendChild(style);
     
-    // Collision detection - only in road lanes (1-7)
+    // Improved collision detection - only when actually touching
     function checkCollision() {
-      if (!gameActive || currentPosition === 0 || currentPosition === 8 || currentPosition === 9) return;
+      if (!gameActive) return;
       
-      const characterX = positions[currentPosition];
-      const characterY = window.innerHeight - 100;
+      const characterX = positions[currentPosition] + 30; // Character center
+      const characterY = window.innerHeight - 70; // Character position
+      const characterWidth = 60;
+      const characterHeight = 60;
       
       cars.forEach(car => {
-        if (car.lane === currentPosition) {
-          // Check if car is near character position
-          if (car.y > characterY - 60 && car.y < characterY + 60) {
-            gameOver.style.display = 'block';
-            gameMessage.innerHTML = '💥 GAME OVER!<br>You got hit by a car!';
-            gameOver.className = 'game-over lose';
-            gameActive = false;
-          }
+        // Check if character and car overlap (precise collision)
+        const carLeft = car.x - 30;
+        const carRight = car.x + 30;
+        const carTop = car.y;
+        const carBottom = car.y + car.height;
+        
+        const characterLeft = characterX - 30;
+        const characterRight = characterX + 30;
+        const characterTop = characterY - 30;
+        const characterBottom = characterY + 30;
+        
+        // Check for actual overlap
+        const horizontalOverlap = characterLeft < carRight && characterRight > carLeft;
+        const verticalOverlap = characterTop < carBottom && characterBottom > carTop;
+        
+        if (horizontalOverlap && verticalOverlap) {
+          gameOver.style.display = 'block';
+          gameMessage.innerHTML = '💥 GAME OVER!<br>You touched a car!';
+          gameOver.className = 'game-over lose';
+          gameActive = false;
         }
       });
     }
     
-    // Spawn cars randomly
+    // Spawn cars more frequently for challenge
     function spawnCars() {
       if (gameActive) {
         createCar();
-        // Next car in 0.8-2.5 seconds
-        setTimeout(spawnCars, 800 + Math.random() * 1700);
+        // More frequent spawning - every 0.2-1.1 seconds
+        setTimeout(spawnCars, 200 + Math.random() * 900);
       }
     }
     
-    // Start spawning cars
-    setTimeout(spawnCars, 3000);
+    // Start spawning cars quickly
+    setTimeout(spawnCars, 1000);
 
     function moveCharacter(direction) {
       if (!gameActive || isMoving) return;
       
       const newPosition = currentPosition + direction;
       
-      // Check boundaries (0-9 positions)
-      if (newPosition < 0 || newPosition > 9) return;
+      // Check boundaries (0 to 19 for 20 total positions)
+      if (newPosition < 0 || newPosition >= totalSteps) return;
       
       isMoving = true;
       
@@ -472,11 +548,18 @@
           const newPositionX = positions[currentPosition];
           cat2d.style.left = newPositionX + "px";
           
-          // Check win condition (reach right pathway - position 9)
-          if (currentPosition === 9) {
-            gameOver.style.display = 'block';
-            gameMessage.innerHTML = '🎉 YOU WIN!<br>Successfully reached the right pathway!';
-            gameOver.className = 'game-over win';
+          // Check win condition - immediately when reaching step 19 (last position)
+          if (currentPosition === totalSteps - 1) {
+            // Show victory popup first
+            document.getElementById('victoryPopup').style.display = 'block';
+            
+            // Show game over screen after 2 seconds
+            setTimeout(() => {
+              gameOver.style.display = 'block';
+              gameMessage.innerHTML = '🎉 YOU WIN!<br>Successfully reached Raghu!';
+              gameOver.className = 'game-over win';
+            }, 2000);
+            
             gameActive = false;
           }
           
@@ -493,28 +576,17 @@
     }
     
     function updateGameStatus() {
-      let statusText = "";
-      let progressText = "";
-      
-      if (currentPosition === 0) {
-        statusText = "You're on the left pathway - safe zone!";
-        progressText = "Position: Left Pathway";
-      } else if (currentPosition >= 1 && currentPosition <= 7) {
-        statusText = `Crossing lane ${currentPosition} of 7 - watch out for cars!`;
-        progressText = `Position: Lane ${currentPosition}/7`;
-      } else if (currentPosition === 8) {
-        statusText = "Almost there - one more step to safety!";
-        progressText = "Position: Near Right Pathway";
-      } else if (currentPosition === 9) {
-        statusText = "🎉 YOU WIN! Safe on the right pathway!";
-        progressText = "Position: Right Pathway - WINNER!";
+      if (currentPosition === totalSteps - 1) {
+        gameStatus.textContent = "🎉 YOU WIN! Successfully reached Raghu!";
+      } else {
+        gameStatus.textContent = "Avoid the cars!";
       }
-      
-      gameStatus.textContent = statusText;
-      progress.textContent = progressText;
     }
     
     function restartGame() {
+      // Hide victory popup
+      document.getElementById('victoryPopup').style.display = 'none';
+      
       // Reset game state
       gameActive = true;
       currentPosition = 0;
@@ -538,7 +610,7 @@
       updateGameStatus();
       
       // Restart car spawning
-      setTimeout(spawnCars, 3000);
+      setTimeout(spawnCars, 1000);
     }
 
     // Event listeners
@@ -560,7 +632,7 @@
     });
     
     // Initialize game
-    cat2d.style.left = positions[0] + "px"; // Start at left pathway
+    cat2d.style.left = positions[0] + "px";
     updateGameStatus();
   </script>
 </body>
